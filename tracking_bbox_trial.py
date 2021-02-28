@@ -1,44 +1,46 @@
 import cv2
-import time
 
+cap = cv2.VideoCapture('futsal2.mp4')
 
-cap = cv2.VideoCapture(0)
-
-tracker = cv2.legacy_TrackerMOSSE.create()
-
-time.sleep(2)
-success, img = cap.read()
-
-bbox = cv2.selectROI("Tracking", img, False)
-tracker.init(img, bbox)
-
-def drawBox(img, bbox):
-	x, y, w, h = int(bbox[0]),int(bbox[1]),int(bbox[2]),int(bbox[3])
-	cv2.rectangle(img, (x, y), (x + w, y + h), (255,0,255), 3, 1)
-
-
+# create object detection instance
+obj_detctor = cv2.createBackgroundSubtractorMOG2()
 
 while True:
-	timer = cv2.getTickCount()
-	success, img = cap.read()
-	success, bbox = tracker.update(img)
 
-	if success:
-		drawBox(img, bbox)
-		cv2.putText(img, "Tracking", (75,75), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0), 2)
-	else:
-		cv2.putText(img, "Lost", (75,75), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 0, 255), 2)
+	ret, frame = cap.read()
+
+	height, width, _ = frame.shape
+
+	# print(height, width)
+	roi = frame[ 230: 720, :]
+	
+	mask = obj_detctor.apply(roi)
+	mask = cv2.dilate(mask, None)
+	mask = cv2.GaussianBlur(mask, (9, 9), 0)
+
+	_, mask = cv2.threshold(mask, 254, 255, cv2.THRESH_BINARY)
+	contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+	for cnt in contours:
+
+		# calculate area and remove small elements
+
+		area = cv2.contourArea(cnt)
+
+		if area > 45 and area < 80:
+			#cv2.drawContours(roi, [cnt], -1, (0,255,0),2)
+			x, y, w, h = cv2.boundingRect(cnt)
+			cv2.rectangle(roi, (x, y), (x + w, y + h), (0, 255, 0), 3)
 
 
+	# cv2.imshow('ROI', roi)
+	cv2.imshow('Frame', frame)
+	cv2.imshow('Mask', mask)
 
-	fps = cv2.getTickFrequency()/ (cv2.getTickCount() - timer)
-	cv2.putText(img, str(int(fps)), (75,50), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 0, 255), 2)
+	key = cv2.waitKey(30)
 
-	cv2.imshow("Tracking", img)
-
-
-
-
-	if cv2.waitKey(1) & 0xff == ord('q'):
+	if key == 27:
 		break
 
+cap.release()
+cv2.destroyAllWindows()
